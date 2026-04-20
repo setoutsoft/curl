@@ -91,7 +91,7 @@
 #  endif
 #elif !defined(HAVE_BORINGSSL_LIKE)
 #  ifndef HAVE_OPENSSL3 /* 2021-09-07 */
-#    error "OpenSSL 3.0.0 or later required"
+#    /* error "OpenSSL 3.0.0 or later required" */
 #  endif
 #endif
 
@@ -2161,7 +2161,7 @@ static CURLcode ossl_verifyhost(struct Curl_easy *data,
     const X509_NAME *name = X509_get_subject_name(server_cert);
     if(name) {
       int j;
-      while((j = X509_NAME_get_index_by_NID(name, NID_commonName, i)) >= 0)
+      while((j = X509_NAME_get_index_by_NID((X509_NAME *)name, NID_commonName, i)) >= 0)
         i = j;
     }
 
@@ -5404,9 +5404,9 @@ size_t Curl_ossl_version(char *buffer, size_t size)
 #elif defined(OPENSSL_IS_AWSLC)
   return curl_msnprintf(buffer, size, "%s/%s",
                         OSSL_PACKAGE, AWSLC_VERSION_NUMBER_STRING);
-#else /* OpenSSL 3+ */
+#else /* OpenSSL */
   return curl_msnprintf(buffer, size, "%s/%s",
-                        OSSL_PACKAGE, OpenSSL_version(OPENSSL_VERSION_STRING));
+                        OSSL_PACKAGE, OpenSSL_version(OPENSSL_VERSION));
 #endif
 }
 

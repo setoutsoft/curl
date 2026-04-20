@@ -149,6 +149,7 @@ endif()
 
 # We want it to be called libcurl on all platforms
 if(BUILD_STATIC_LIBS)
+  set(CMAKE_POSITION_INDEPENDENT_CODE ON)
   list(APPEND libcurl_export ${LIB_STATIC})
   add_library(${LIB_STATIC} STATIC ${LIB_SOURCE})
   add_library(${PROJECT_NAME}::${LIB_STATIC} ALIAS ${LIB_STATIC})

@@ -820,7 +820,25 @@ if(_use_core_foundation_and_core_services)
 endif()
 
 if(CURL_USE_OPENSSL)
-  find_package(OpenSSL REQUIRED)
+  # Check if OpenSSL targets already exist (e.g., from local openssl-cmake)
+  if(TARGET OpenSSL::SSL AND TARGET OpenSSL::Crypto)
+    message(STATUS "Using pre-configured OpenSSL targets")
+    # Set OpenSSL version and disable checks that require test compilation
+    set(OPENSSL_VERSION "1.1.1" CACHE STRING "OpenSSL version" FORCE)
+    set(HAVE_BORINGSSL OFF)
+    set(HAVE_AWSLC OFF)
+    set(HAVE_LIBRESSL OFF)
+    # Pre-set common OpenSSL feature flags for standard OpenSSL 1.1.x
+    set(HAVE_DES_ECB_ENCRYPT ON)
+    set(HAVE_SSL_SET0_WBIO ON)
+    set(HAVE_OPENSSL_SRP ON)
+    set(HAVE_SSL_SET_QUIC_USE_LEGACY_CODEPOINT OFF)
+    set(HAVE_SSL_SET_QUIC_TLS_CBS OFF)
+    set(HAVE_OPENSSL3 0)
+  else()
+    find_package(OpenSSL REQUIRED)
+  endif()
+  
   set(_ssl_enabled ON)
   set(USE_OPENSSL ON)
 
@@ -833,18 +851,21 @@ if(CURL_USE_OPENSSL)
   endif()
   set(_curl_ca_bundle_supported TRUE)
 
-  cmake_push_check_state()
-  list(APPEND CMAKE_REQUIRED_LIBRARIES OpenSSL::SSL OpenSSL::Crypto)
-  if(NOT DEFINED HAVE_BORINGSSL)
-    check_symbol_exists("OPENSSL_IS_BORINGSSL" "openssl/base.h" HAVE_BORINGSSL)
+  # Skip BoringSSL/AWS-LC/LibreSSL checks when using pre-configured OpenSSL targets
+  if(NOT (TARGET OpenSSL::SSL AND TARGET OpenSSL::Crypto))
+    cmake_push_check_state()
+    list(APPEND CMAKE_REQUIRED_LIBRARIES OpenSSL::SSL OpenSSL::Crypto)
+    if(NOT DEFINED HAVE_BORINGSSL)
+      check_symbol_exists("OPENSSL_IS_BORINGSSL" "openssl/base.h" HAVE_BORINGSSL)
+    endif()
+    if(NOT DEFINED HAVE_AWSLC)
+      check_symbol_exists("OPENSSL_IS_AWSLC" "openssl/base.h" HAVE_AWSLC)
+    endif()
+    if(NOT DEFINED HAVE_LIBRESSL)
+      check_symbol_exists("LIBRESSL_VERSION_NUMBER" "openssl/opensslv.h" HAVE_LIBRESSL)
+    endif()
+    cmake_pop_check_state()
   endif()
-  if(NOT DEFINED HAVE_AWSLC)
-    check_symbol_exists("OPENSSL_IS_AWSLC" "openssl/base.h" HAVE_AWSLC)
-  endif()
-  if(NOT DEFINED HAVE_LIBRESSL)
-    check_symbol_exists("LIBRESSL_VERSION_NUMBER" "openssl/opensslv.h" HAVE_LIBRESSL)
-  endif()
-  cmake_pop_check_state()
 
   if(HAVE_BORINGSSL OR HAVE_AWSLC)
     if(NOT MSVC AND NOT ANDROID)  # BoringSSL/AWS-LC MSVC builds use native Windows threads
@@ -2292,12 +2313,6 @@ if(NOT CURL_DISABLE_INSTALL)
   configure_file(
     "${PROJECT_SOURCE_DIR}/curl-config.in"
     "${PROJECT_BINARY_DIR}/curl-config" @ONLY)
-  install(FILES "${PROJECT_BINARY_DIR}/curl-config"
-    DESTINATION ${CMAKE_INSTALL_BINDIR}
-    PERMISSIONS
-      OWNER_READ OWNER_WRITE OWNER_EXECUTE
-      GROUP_READ GROUP_EXECUTE
-      WORLD_READ WORLD_EXECUTE)
 
   # Generate a pkg-config file matching this config.
   # Consumed variables:
@@ -2323,13 +2338,6 @@ if(NOT CURL_DISABLE_INSTALL)
   configure_file(
     "${PROJECT_SOURCE_DIR}/libcurl.pc.in"
     "${PROJECT_BINARY_DIR}/libcurl.pc" @ONLY)
-  install(FILES "${PROJECT_BINARY_DIR}/libcurl.pc"
-    DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig")
-
-  # Install headers
-  install(DIRECTORY "${PROJECT_SOURCE_DIR}/include/curl"
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-    FILES_MATCHING PATTERN "*.h")
 
   include(CMakePackageConfigHelpers)
   write_basic_package_version_file("${_version_config}"
@@ -2390,50 +2398,6 @@ if(NOT CURL_DISABLE_INSTALL)
       NAMESPACE "${PROJECT_NAME}::"
       DESTINATION ${_install_cmake_dir})
   endif()
-
-  install(
-    FILES
-      ${_version_config}
-      ${_project_config}
-      "${CMAKE_CURRENT_SOURCE_DIR}/CMake/FindBrotli.cmake"
-      "${CMAKE_CURRENT_SOURCE_DIR}/CMake/FindCares.cmake"
-      "${CMAKE_CURRENT_SOURCE_DIR}/CMake/FindGSS.cmake"
-      "${CMAKE_CURRENT_SOURCE_DIR}/CMake/FindGnuTLS.cmake"
-      "${CMAKE_CURRENT_SOURCE_DIR}/CMake/FindLDAP.cmake"
-      "${CMAKE_CURRENT_SOURCE_DIR}/CMake/FindLibbacktrace.cmake"
-      "${CMAKE_CURRENT_SOURCE_DIR}/CMake/FindLibgsasl.cmake"
-      "${CMAKE_CURRENT_SOURCE_DIR}/CMake/FindLibidn2.cmake"
-      "${CMAKE_CURRENT_SOURCE_DIR}/CMake/FindLibpsl.cmake"
-      "${CMAKE_CURRENT_SOURCE_DIR}/CMake/FindLibssh.cmake"
-      "${CMAKE_CURRENT_SOURCE_DIR}/CMake/FindLibssh2.cmake"
-      "${CMAKE_CURRENT_SOURCE_DIR}/CMake/FindLibuv.cmake"
-      "${CMAKE_CURRENT_SOURCE_DIR}/CMake/FindMbedTLS.cmake"
-      "${CMAKE_CURRENT_SOURCE_DIR}/CMake/FindNGHTTP2.cmake"
-      "${CMAKE_CURRENT_SOURCE_DIR}/CMake/FindNGHTTP3.cmake"
-      "${CMAKE_CURRENT_SOURCE_DIR}/CMake/FindNGTCP2.cmake"
-      "${CMAKE_CURRENT_SOURCE_DIR}/CMake/FindNettle.cmake"
-      "${CMAKE_CURRENT_SOURCE_DIR}/CMake/FindQuiche.cmake"
-      "${CMAKE_CURRENT_SOURCE_DIR}/CMake/FindRustls.cmake"
-      "${CMAKE_CURRENT_SOURCE_DIR}/CMake/FindWolfSSL.cmake"
-      "${CMAKE_CURRENT_SOURCE_DIR}/CMake/FindZstd.cmake"
-    DESTINATION ${_install_cmake_dir})
-
-  if(NOT TARGET curl_uninstall)
-    configure_file(
-      "${CMAKE_CURRENT_SOURCE_DIR}/CMake/cmake_uninstall.in.cmake"
-      "${CMAKE_CURRENT_BINARY_DIR}/CMake/cmake_uninstall.cmake"
-      @ONLY)
-
-    add_custom_target(curl_uninstall
-      COMMAND ${CMAKE_COMMAND} -P "${CMAKE_CURRENT_BINARY_DIR}/CMake/cmake_uninstall.cmake")
-  endif()
-
-  install(FILES "${PROJECT_SOURCE_DIR}/scripts/wcurl"
-    DESTINATION ${CMAKE_INSTALL_BINDIR}
-    PERMISSIONS
-      OWNER_READ OWNER_WRITE OWNER_EXECUTE
-      GROUP_READ GROUP_EXECUTE
-      WORLD_READ WORLD_EXECUTE)
 
   # The `-DEV` part is important
   string(REGEX REPLACE "([0-9]+\.[0-9]+)\.([0-9]+.*)" "\\2" CPACK_PACKAGE_VERSION_PATCH "${_curl_version}")

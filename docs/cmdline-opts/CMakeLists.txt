@@ -37,10 +37,6 @@ add_custom_command(OUTPUT "${CURL_MANPAGE}" "${CURL_ASCIIPAGE}"
 
 add_custom_target(generate-curl.1 ALL DEPENDS "${CURL_MANPAGE}")
 
-if(NOT CURL_DISABLE_INSTALL)
-  install(FILES "${CURL_MANPAGE}" DESTINATION "${CMAKE_INSTALL_MANDIR}/man1")
-endif()
-
 if(PERL_EXECUTABLE)
   add_custom_target(curl-listhelp
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
