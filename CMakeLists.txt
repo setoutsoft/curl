@@ -2339,6 +2339,11 @@ if(NOT CURL_DISABLE_INSTALL)
     "${PROJECT_SOURCE_DIR}/libcurl.pc.in"
     "${PROJECT_BINARY_DIR}/libcurl.pc" @ONLY)
 
+  # Install headers
+  install(DIRECTORY "${PROJECT_SOURCE_DIR}/include/curl"
+    DESTINATION include/third-part/curl
+    FILES_MATCHING PATTERN "*.h")
+
   include(CMakePackageConfigHelpers)
   write_basic_package_version_file("${_version_config}"
     VERSION ${_curl_version}
